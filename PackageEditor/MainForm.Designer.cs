@@ -91,6 +91,10 @@
             this.propertyAppID = new System.Windows.Forms.TextBox();
             this.label1 = new System.Windows.Forms.Label();
             this.groupBox1 = new System.Windows.Forms.GroupBox();
+            this.groupBox8 = new System.Windows.Forms.GroupBox();
+            this.propertyVirtModeDisk = new System.Windows.Forms.RadioButton();
+            this.propertyVirtModeRam = new System.Windows.Forms.RadioButton();
+            this.label9 = new System.Windows.Forms.Label();
             this.label6 = new System.Windows.Forms.Label();
             this.lnkAutoLaunch = new System.Windows.Forms.LinkLabel();
             this.propertyAutoLaunch = new System.Windows.Forms.Label();
@@ -149,7 +153,6 @@
             this.panelWelcome = new System.Windows.Forms.Panel();
             this.panel15 = new System.Windows.Forms.Panel();
             this.panel14 = new System.Windows.Forms.Panel();
-            this.lblLogoTitle = new System.Windows.Forms.Label();
             this.pictureBox2 = new System.Windows.Forms.PictureBox();
             this.panel13 = new System.Windows.Forms.Panel();
             this.pictureBox5 = new System.Windows.Forms.PictureBox();
@@ -181,6 +184,7 @@
             this.tabGeneral.SuspendLayout();
             this.groupBox3.SuspendLayout();
             this.groupBox1.SuspendLayout();
+            this.groupBox8.SuspendLayout();
             this.groupBox2.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.propertyIcon)).BeginInit();
             this.tabFileSystem.SuspendLayout();
@@ -625,6 +629,7 @@
             // 
             resources.ApplyResources(this.propertyFileVersion, "propertyFileVersion");
             this.propertyFileVersion.Name = "propertyFileVersion";
+            this.propertyFileVersion.TextChanged += new System.EventHandler(this.PropertyChange);
             // 
             // label2
             // 
@@ -635,11 +640,13 @@
             // 
             resources.ApplyResources(this.propertyFriendlyName, "propertyFriendlyName");
             this.propertyFriendlyName.Name = "propertyFriendlyName";
+            this.propertyFriendlyName.TextChanged += new System.EventHandler(this.PropertyChange);
             // 
             // propertyAppID
             // 
             resources.ApplyResources(this.propertyAppID, "propertyAppID");
             this.propertyAppID.Name = "propertyAppID";
+            this.propertyAppID.TextChanged += new System.EventHandler(this.PropertyChange);
             // 
             // label1
             // 
@@ -649,6 +656,8 @@
             // groupBox1
             // 
             resources.ApplyResources(this.groupBox1, "groupBox1");
+            this.groupBox1.Controls.Add(this.groupBox8);
+            this.groupBox1.Controls.Add(this.label9);
             this.groupBox1.Controls.Add(this.label6);
             this.groupBox1.Controls.Add(this.lnkAutoLaunch);
             this.groupBox1.Controls.Add(this.propertyAutoLaunch);
@@ -662,6 +671,35 @@
             this.groupBox1.Controls.Add(this.lblAutoLaunch);
             this.groupBox1.Name = "groupBox1";
             this.groupBox1.TabStop = false;
+            // 
+            // groupBox8
+            // 
+            resources.ApplyResources(this.groupBox8, "groupBox8");
+            this.groupBox8.Controls.Add(this.propertyVirtModeDisk);
+            this.groupBox8.Controls.Add(this.propertyVirtModeRam);
+            this.groupBox8.Name = "groupBox8";
+            this.groupBox8.TabStop = false;
+            // 
+            // propertyVirtModeDisk
+            // 
+            resources.ApplyResources(this.propertyVirtModeDisk, "propertyVirtModeDisk");
+            this.propertyVirtModeDisk.Name = "propertyVirtModeDisk";
+            this.propertyVirtModeDisk.TabStop = true;
+            this.propertyVirtModeDisk.UseVisualStyleBackColor = true;
+            this.propertyVirtModeDisk.Click += new System.EventHandler(this.PropertyChange);
+            // 
+            // propertyVirtModeRam
+            // 
+            resources.ApplyResources(this.propertyVirtModeRam, "propertyVirtModeRam");
+            this.propertyVirtModeRam.Name = "propertyVirtModeRam";
+            this.propertyVirtModeRam.TabStop = true;
+            this.propertyVirtModeRam.UseVisualStyleBackColor = true;
+            this.propertyVirtModeRam.Click += new System.EventHandler(this.PropertyChange);
+            // 
+            // label9
+            // 
+            resources.ApplyResources(this.label9, "label9");
+            this.label9.Name = "label9";
             // 
             // label6
             // 
@@ -1055,22 +1093,16 @@
             // panel15
             // 
             resources.ApplyResources(this.panel15, "panel15");
-            this.panel15.BackColor = System.Drawing.SystemColors.Control;
+            this.panel15.BackColor = System.Drawing.Color.Transparent;
             this.panel15.Controls.Add(this.panel14);
             this.panel15.Name = "panel15";
             // 
             // panel14
             // 
             resources.ApplyResources(this.panel14, "panel14");
-            this.panel14.Controls.Add(this.lblLogoTitle);
+            this.panel14.BackColor = System.Drawing.Color.Transparent;
             this.panel14.Controls.Add(this.pictureBox2);
             this.panel14.Name = "panel14";
-            // 
-            // lblLogoTitle
-            // 
-            resources.ApplyResources(this.lblLogoTitle, "lblLogoTitle");
-            this.lblLogoTitle.ForeColor = System.Drawing.Color.Gray;
-            this.lblLogoTitle.Name = "lblLogoTitle";
             // 
             // pictureBox2
             // 
@@ -1224,6 +1256,8 @@
             this.groupBox3.PerformLayout();
             this.groupBox1.ResumeLayout(false);
             this.groupBox1.PerformLayout();
+            this.groupBox8.ResumeLayout(false);
+            this.groupBox8.PerformLayout();
             this.groupBox2.ResumeLayout(false);
             this.groupBox2.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.propertyIcon)).EndInit();
@@ -1253,7 +1287,6 @@
             this.panelWelcome.ResumeLayout(false);
             this.panel15.ResumeLayout(false);
             this.panel14.ResumeLayout(false);
-            this.panel14.PerformLayout();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).EndInit();
             this.panel13.ResumeLayout(false);
             this.panel13.PerformLayout();
@@ -1393,7 +1426,6 @@
         private System.Windows.Forms.Panel panel13;
         private System.Windows.Forms.Panel panel15;
         private System.Windows.Forms.Panel panel14;
-        private System.Windows.Forms.Label lblLogoTitle;
         private System.Windows.Forms.PictureBox pictureBox2;
         private System.Windows.Forms.ToolStripMenuItem langToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem englishMenuItem;
@@ -1404,6 +1436,10 @@
         private System.Windows.Forms.RadioButton rdbIntegrateStandard;
         private System.Windows.Forms.RadioButton rdbIntegrateNone;
         private System.Windows.Forms.ToolStripMenuItem chineseMenuItem;
+        private System.Windows.Forms.GroupBox groupBox8;
+        private System.Windows.Forms.RadioButton propertyVirtModeDisk;
+        private System.Windows.Forms.RadioButton propertyVirtModeRam;
+        private System.Windows.Forms.Label label9;
 
     }
 }

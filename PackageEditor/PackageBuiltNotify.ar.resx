@@ -118,42 +118,12 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="$this.Text" xml:space="preserve">
-    <value>自动启动</value>
-  </data>
-  <data name="btnAdd.Text" xml:space="preserve">
-    <value>添加(&amp;A)</value>
-  </data>
-  <data name="btnCancel.Text" xml:space="preserve">
-    <value>取消</value>
-  </data>
-  <data name="btnModify.Text" xml:space="preserve">
-    <value>修改(&amp;M)</value>
+    <value>تصفح</value>
   </data>
   <data name="btnOk.Text" xml:space="preserve">
-    <value>确定</value>
+    <value>نعم</value>
   </data>
-  <data name="btnRemove.Text" xml:space="preserve">
-    <value>删除(&amp;R)</value>
-  </data>
-  <data name="columnHeader1.Text" xml:space="preserve">
-    <value>标题</value>
-  </data>
-  <data name="columnHeader2.Text" xml:space="preserve">
-    <value>命令</value>
-  </data>
-  <data name="columnHeader3.Text" xml:space="preserve">
-    <value>说明</value>
-  </data>
-  <data name="columnHeader4.Text" xml:space="preserve">
-    <value>参数</value>
-  </data>
-  <data name="label4.Text" xml:space="preserve">
-    <value>参数(可选)</value>
-  </data>
-  <data name="propertyCmdRadio.Text" xml:space="preserve">
-    <value>自定义命令</value>
-  </data>
-  <data name="propertyMenuRadio.Text" xml:space="preserve">
-    <value>显示以下菜单</value>
+  <data name="cbDontShowAgain.Text" xml:space="preserve">
+    <value>لا يعرض مرة أخرى</value>
   </data>
 </root>

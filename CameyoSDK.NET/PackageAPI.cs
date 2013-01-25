@@ -27,10 +27,10 @@ namespace VirtPackageAPI
         NO_FLAGS = 0x0,
         ISFILE = 0x0001,        // File or directory?
         DELETED = 0x0002,       // Deleted by virtual app (NOT_FOUND)
-        DEPLOYED = 0x0008,      // Set upon first file opening
+        DEPLOY_UPON_PRELOAD = 0x0008,   // Deploy file upon preload (in execute-from-disk mode)
         DISCONNECTED = 0x0010,  // Set when on-disk file is modified from DB
         PKG_FILE = 0x0020,      // File/dir is part of the original package (as opposed to files newly-added to sandbox during package use)
-        ALL_FLAGS = ISFILE | DELETED | DEPLOYED | DISCONNECTED | PKG_FILE
+        ALL_FLAGS = ISFILE | DELETED | DEPLOY_UPON_PRELOAD | DISCONNECTED | PKG_FILE
     }
 
     [Flags]
@@ -57,6 +57,15 @@ namespace VirtPackageAPI
             VIRTREG_DEPLOY_ERROR = 11,
             OUTPUT_ERROR = 12,
             INSUFFICIENT_BUFFER = 13,
+            LOADLIBRARY_ERROR = 14,
+            VIRTFILES_INI_ERROR = 15,
+            APP_NOT_DEPLOYED = 16,
+            INSUFFICIENT_PRIVILEGES = 17,
+            _32_64_BIT_MISMATCH = 18,
+            DOTNET_REQUIRED = 19,
+            CANCELLED = 20,
+            INJECTION_FAILED = 21,
+            OLD_VERSION = 22,
         }
 
         public const int SANDBOXFLAGS_PASSTHROUGH = 1;
@@ -595,8 +604,8 @@ namespace VirtPackageAPI
         // QuickReadIniValues (wrapper)
         public static System.Collections.Hashtable QuickReadIniValues(string PacakgeExeFile)
         {
-            StringBuilder sb = new StringBuilder(8192);
-            VirtPackage.QuickReadIni(PacakgeExeFile, sb, 8192);
+            StringBuilder sb = new StringBuilder(16384);
+            VirtPackage.QuickReadIni(PacakgeExeFile, sb, 16384);
             return VirtPackage.ReadIniSettingsBuf(sb.ToString());
         }
 
@@ -631,9 +640,10 @@ namespace VirtPackageAPI
             byte[] pIniBuf,
             UInt32 cbIniBuf)
         {
-            return Is32Bit()
+            int ret = Is32Bit()
                 ? QuickBuildAppendiceIndex32(pLastFileBytes, cbLastFileBytes, pNewIndex, ref pcbNewIndex, pSandboxCfg, cbSandboxCfg, pIniBuf, cbIniBuf)
                 : QuickBuildAppendiceIndex64(pLastFileBytes, cbLastFileBytes, pNewIndex, ref pcbNewIndex, pSandboxCfg, cbSandboxCfg, pIniBuf, cbIniBuf);
+            return ret;
         }
 
         // QuickExtractAppendiceIndex (reserved for internal use)
@@ -1018,8 +1028,8 @@ namespace VirtPackageAPI
             String DestFileName,
             bool bVariablizeName)
         {
-          VIRT_FILE_FLAGS fileFlags = VIRT_FILE_FLAGS.ISFILE & VIRT_FILE_FLAGS.DEPLOYED & VIRT_FILE_FLAGS.PKG_FILE;
-          return AddFileEx(SrcFileName, DestFileName, bVariablizeName, fileFlags);
+            VIRT_FILE_FLAGS fileFlags = VIRT_FILE_FLAGS.ISFILE | VIRT_FILE_FLAGS.DEPLOY_UPON_PRELOAD | VIRT_FILE_FLAGS.PKG_FILE;
+            return AddFileEx(SrcFileName, DestFileName, bVariablizeName, fileFlags);
         }
 
         public bool AddFileEx(
