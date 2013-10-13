@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 //using System.Linq;
 using System.Text;
@@ -7,6 +7,7 @@ using System.Drawing;
 using System.Threading;
 using System.Windows.Forms;
 using System.IO;
+using Microsoft.Win32;
 
 namespace Cameyo.OpenSrc.Common
 {
@@ -42,6 +43,44 @@ namespace Cameyo.OpenSrc.Common
             return false;
         }
 
+        static public bool ShellExec(string cmd, string args, string verb, ref int exitCode, bool wait)
+        {
+            try
+            {
+                System.Diagnostics.ProcessStartInfo procStartInfo =
+                    new System.Diagnostics.ProcessStartInfo(cmd, args);
+                System.Diagnostics.Process proc = new System.Diagnostics.Process();
+                procStartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Normal;
+                procStartInfo.CreateNoWindow = false;
+                procStartInfo.UseShellExecute = true;
+                procStartInfo.Verb = verb;
+                proc.StartInfo = procStartInfo;
+                if (!proc.Start())
+                    return false;
+                if (wait)
+                {
+                    proc.WaitForExit();
+                    exitCode = proc.ExitCode;
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        static public bool ShellExec(string cmd, string args)
+        {
+            int exitCode = 0;
+            return ShellExec(cmd, args, "open", ref exitCode, false);
+        }
+
+        static public bool ShellExec(string cmd)
+        {
+            return ShellExec(cmd, null);
+        }
+
         static public long GetFileSize(String fileName)
         {
             try
@@ -52,6 +91,30 @@ namespace Cameyo.OpenSrc.Common
             catch
             {
                 return -1;
+            }
+        }
+
+        static public String HexDump(byte[] bytes)
+        {
+            string hexString = "";
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                hexString += bytes[i].ToString("X2");
+            }
+            return hexString;
+        }
+
+        static public bool IsElevatedProcess()
+        {
+            try
+            {
+                var softwareKey = Registry.LocalMachine.OpenSubKey("Software", true);
+                softwareKey.Close();
+                return true;
+            }
+            catch
+            {
+                return false;
             }
         }
     }
@@ -221,9 +284,13 @@ namespace Cameyo.OpenSrc.Common
                 dialog.ClientSize = new Size(Math.Max(msg.Width + 100, 250), 70);
                 msg.Location = new Point(dialog.ClientSize.Width / 2 - msg.Width / 2, 12);
                 dialog.Show(null);
-                EventWaitHandle pleaseWaitDialogEvent = AutoResetEvent.OpenExisting("pleaseWaitDialogEvent");
-                while (!pleaseWaitDialogEvent.WaitOne(10, false))
-                    Application.DoEvents();
+                try
+                {
+                    EventWaitHandle pleaseWaitDialogEvent = AutoResetEvent.OpenExisting("pleaseWaitDialogEvent");
+                    while (!pleaseWaitDialogEvent.WaitOne(10, false))
+                        Application.DoEvents();
+                }
+                catch { }
             }
         }
         #endregion
@@ -247,8 +314,12 @@ namespace Cameyo.OpenSrc.Common
 
         static public void PleaseWaitEnd()
         {
-            EventWaitHandle pleaseWaitDialogEvent = EventWaitHandle.OpenExisting("pleaseWaitDialogEvent");
-            pleaseWaitDialogEvent.Set();
+            try
+            {
+                EventWaitHandle pleaseWaitDialogEvent = EventWaitHandle.OpenExisting("pleaseWaitDialogEvent");
+                pleaseWaitDialogEvent.Set();
+            }
+            catch { }
         }
     }
 
@@ -412,8 +483,13 @@ namespace Cameyo.OpenSrc.Common
             langs.Add(new LangItem("Français", "FR", "fr-FR"));
             langs.Add(new LangItem("Español", "ES", "es-ES"));
             langs.Add(new LangItem("Deutsch", "DE", "de-DE"));
+            langs.Add(new LangItem("Italian", "IT", "it-IT"));
+            langs.Add(new LangItem("Turkish", "TR", "tr-TR"));
             langs.Add(new LangItem("Chinese", "CN", "zh-CN"));
+            langs.Add(new LangItem("Polish", "PL", "pl-PL"));
+            langs.Add(new LangItem("Arabic", "AR", "ar-SA"));
             langs.Add(new LangItem("Indonesian", "ID", "id-ID"));
+            langs.Add(new LangItem("Afrikaans", "ZA", "af-ZA"));
             return langs;
         }
 
@@ -478,6 +554,47 @@ namespace Cameyo.OpenSrc.Common
                 regKey.SetValue("Culture", cultureStr);
             }
             catch { }
+        }
+    }
+
+    public class Win64
+    {
+        static public bool Is64BitProcess()
+        {
+            return (IntPtr.Size == 8);
+        }
+
+        static public bool IsWin64()
+        {
+            return Is64BitProcess() || InternalCheckIsWow64();
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true, CallingConvention = CallingConvention.Winapi)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWow64Process(
+            [In] IntPtr hProcess,
+            [Out] out bool wow64Process
+        );
+
+        private static bool InternalCheckIsWow64()
+        {
+            if ((Environment.OSVersion.Version.Major == 5 && Environment.OSVersion.Version.Minor >= 1) ||
+                Environment.OSVersion.Version.Major >= 6)
+            {
+                using (System.Diagnostics.Process p = System.Diagnostics.Process.GetCurrentProcess())
+                {
+                    bool retVal;
+                    if (!IsWow64Process(p.Handle, out retVal))
+                    {
+                        return false;
+                    }
+                    return retVal;
+                }
+            }
+            else
+            {
+                return false;
+            }
         }
     }
 }

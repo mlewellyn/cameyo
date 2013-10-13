@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Runtime.InteropServices;
 using System.IO;
+using System.Collections;
 using Microsoft.Win32;
 using Microsoft.Win32.SafeHandles;
 
@@ -25,12 +26,13 @@ namespace VirtPackageAPI
     public enum VIRT_FILE_FLAGS
     {
         NO_FLAGS = 0x0,
-        ISFILE = 0x0001,        // File or directory?
-        DELETED = 0x0002,       // Deleted by virtual app (NOT_FOUND)
-        DEPLOYED = 0x0008,      // Set upon first file opening
-        DISCONNECTED = 0x0010,  // Set when on-disk file is modified from DB
-        PKG_FILE = 0x0020,      // File/dir is part of the original package (as opposed to files newly-added to sandbox during package use)
-        ALL_FLAGS = ISFILE | DELETED | DEPLOYED | DISCONNECTED | PKG_FILE
+        ISFILE = 0x0001,                  // File or directory?
+        DELETED = 0x0002,                 // Deleted by virtual app (NOT_FOUND)
+        DEPLOY_UPON_PRELOAD = 0x0008,     // Force file deploy (Disk mode)
+        DISCONNECTED = 0x0010,            // Set when on-disk file is modified from DB
+        PKG_FILE = 0x0020,                // File/dir is part of the original package (as opposed to files newly-added to sandbox during package use)
+        DEPLOY_RAM_MODE = 0x0200,         // Force file deploy (RAM mode)
+        ALL_FLAGS = ISFILE | DELETED | DEPLOY_UPON_PRELOAD | DISCONNECTED | PKG_FILE | DEPLOY_RAM_MODE
     }
 
     [Flags]
@@ -57,11 +59,22 @@ namespace VirtPackageAPI
             VIRTREG_DEPLOY_ERROR = 11,
             OUTPUT_ERROR = 12,
             INSUFFICIENT_BUFFER = 13,
+            LOADLIBRARY_ERROR = 14,
+            VIRTFILES_INI_ERROR = 15,
+            APP_NOT_DEPLOYED = 16,
+            INSUFFICIENT_PRIVILEGES = 17,
+            _32_64_BIT_MISMATCH = 18,
+            DOTNET_REQUIRED = 19,
+            CANCELLED = 20,
+            INJECTION_FAILED = 21,
+            OLD_VERSION = 22,
+            PASSWORD_REQUIRED = 23,
+            PASSWORD_MISMATCH = 24,
         }
 
         public const int SANDBOXFLAGS_PASSTHROUGH = 1;
         public const int SANDBOXFLAGS_COPY_ON_WRITE = 2;
-        public const int SANDBOXFLAGS_FULL_ISOLATION = 3;
+        public const int SANDBOXFLAGS_STRICTLY_ISOLATED = 3;
 
         // UI isolation constants:
         public const int ISOLATIONMODE_CUSTOM = 0;
@@ -79,6 +92,9 @@ namespace VirtPackageAPI
 
         private const int MAX_PATH = 260;
         public const int MAX_APPID_LENGTH = 128;
+
+        public const int LICENSETYPE_PRO = 2;
+        public const int LICENSETYPE_DEV = 3;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct SYSTEMTIME
@@ -232,6 +248,28 @@ namespace VirtPackageAPI
             String FileName)
         {
             return Is32Bit() ? PackageSetIconFile32(hPkg, FileName) : PackageSetIconFile64(hPkg, FileName);
+        }
+
+        // PackageSetProtection
+        [DllImport(DLL32, EntryPoint = "PackageSetProtection", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int PackageSetProtection32(
+            IntPtr hPkg,
+            [MarshalAs(UnmanagedType.LPStr)] String Password,
+            Int32 ProtectedActions,
+            String RequireCertificate);
+        [DllImport(DLL64, EntryPoint = "PackageSetProtection", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int PackageSetProtection64(
+            IntPtr hPkg,
+            [MarshalAs(UnmanagedType.LPStr)] String Password,
+            Int32 ProtectedActions,
+            String RequireCertificate);
+        private static int PackageSetProtection(
+            IntPtr hPkg,
+            [MarshalAs(UnmanagedType.LPStr)] String Password,
+            Int32 ProtectedActions,
+            String RequireCertificate)
+        {
+            return Is32Bit() ? PackageSetProtection32(hPkg, Password, ProtectedActions, RequireCertificate) : PackageSetProtection64(hPkg, Password, ProtectedActions, RequireCertificate);
         }
 
         //
@@ -593,10 +631,10 @@ namespace VirtPackageAPI
         }
 
         // QuickReadIniValues (wrapper)
-        public static System.Collections.Hashtable QuickReadIniValues(string PacakgeExeFile)
+        public static Hashtable QuickReadIniValues(string PacakgeExeFile)
         {
-            StringBuilder sb = new StringBuilder(8192);
-            VirtPackage.QuickReadIni(PacakgeExeFile, sb, 8192);
+            StringBuilder sb = new StringBuilder(16384);
+            VirtPackage.QuickReadIni(PacakgeExeFile, sb, 16384);
             return VirtPackage.ReadIniSettingsBuf(sb.ToString());
         }
 
@@ -631,9 +669,10 @@ namespace VirtPackageAPI
             byte[] pIniBuf,
             UInt32 cbIniBuf)
         {
-            return Is32Bit()
+            int ret = Is32Bit()
                 ? QuickBuildAppendiceIndex32(pLastFileBytes, cbLastFileBytes, pNewIndex, ref pcbNewIndex, pSandboxCfg, cbSandboxCfg, pIniBuf, cbIniBuf)
                 : QuickBuildAppendiceIndex64(pLastFileBytes, cbLastFileBytes, pNewIndex, ref pcbNewIndex, pSandboxCfg, cbSandboxCfg, pIniBuf, cbIniBuf);
+            return ret;
         }
 
         // QuickExtractAppendiceIndex (reserved for internal use)
@@ -664,6 +703,23 @@ namespace VirtPackageAPI
             catch { }
             return ret;
         }
+
+        // LicDataLoadFromFile (reserved for internal use)
+        [DllImport(DLL32, EntryPoint = "LicDataLoadFromFile", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int LicDataLoadFromFile32(
+            String FileName);
+        [DllImport(DLL64, EntryPoint = "LicDataLoadFromFile", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int LicDataLoadFromFile64(
+            String FileName);
+        public static int LicDataLoadFromFile(
+            String FileName)
+        {
+            int ret = Is32Bit()
+                ? LicDataLoadFromFile32(FileName)
+                : LicDataLoadFromFile64(FileName);
+            return ret;
+        }
+
 
         //
         // DeployedApp imports
@@ -766,18 +822,34 @@ namespace VirtPackageAPI
             return Is32Bit() ? RunningAppEnumKeepAliveFree32(Context) : RunningAppEnumKeepAliveFree64(Context);
         }
 
+        // PackUtils_CopyIconsFromExeToExe
+        [DllImport(DLL32, EntryPoint = "PackUtils_CopyIconsFromExeToExe", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int PackUtils_CopyIconsFromExeToExe32(
+            String SrcFile,
+            String TgtFile);
+        [DllImport(DLL64, EntryPoint = "PackUtils_CopyIconsFromExeToExe", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
+        private extern static int PackUtils_CopyIconsFromExeToExe64(
+            String SrcFile,
+            String TgtFile);
+        public static int PackUtils_CopyIconsFromExeToExe(
+            String SrcFile,
+            String TgtFile)
+        {
+            return Is32Bit() ? PackUtils_CopyIconsFromExeToExe32(SrcFile, TgtFile) : PackUtils_CopyIconsFromExeToExe64(SrcFile, TgtFile);
+        }
+
         [StructLayout(LayoutKind.Sequential)]
         private struct RUNNING_APP
         {
             public UInt32 Version;
             public UInt32 SerialId;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = MAX_PATH * 4 * 2)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = MAX_PATH * 2 * 2)]
             public char[] CarrierExeName;
             public UInt32 CarrierPID;
             public UInt32 StartTickTime;
             public UInt32 SyncStreamingDuration;
             public UInt32 TotalPIDs;
-            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 2048)]
+            [MarshalAs(UnmanagedType.ByValArray, SizeConst = 128)]
             public VIRT_PROCESS[] Processes;
             [MarshalAs(UnmanagedType.ByValArray, SizeConst = MAX_APPID_LENGTH * 2)]
             public char[] AppID;
@@ -912,7 +984,11 @@ namespace VirtPackageAPI
             if (apiRet == APIRET.SUCCESS)
             {
                 opened = true;
-                openedFile = PackageExeFile;
+                int passwordPos = PackageExeFile.IndexOf('|');
+                if (passwordPos == -1)
+                    openedFile = PackageExeFile;
+                else
+                    openedFile = PackageExeFile.Substring(0, passwordPos);
                 return true;
             }
             else
@@ -959,6 +1035,17 @@ namespace VirtPackageAPI
         public bool SetProperty(String Name, String Value)
         {
             APIRET Ret = (APIRET)PackageSetProperty(hPkg, Name, Value);
+            if (Ret == APIRET.SUCCESS)
+                return true;
+            else if (Ret == APIRET.FILE_CREATE_ERROR)
+                return false;
+            else
+                return false;
+        }
+
+        public bool SetProtection(String Password, int ProtectedActions, String RequireCertificate)
+        {
+            APIRET Ret = (APIRET)PackageSetProtection(hPkg, Password, ProtectedActions, RequireCertificate);
             if (Ret == APIRET.SUCCESS)
                 return true;
             else if (Ret == APIRET.FILE_CREATE_ERROR)
@@ -1018,8 +1105,8 @@ namespace VirtPackageAPI
             String DestFileName,
             bool bVariablizeName)
         {
-          VIRT_FILE_FLAGS fileFlags = VIRT_FILE_FLAGS.ISFILE & VIRT_FILE_FLAGS.DEPLOYED & VIRT_FILE_FLAGS.PKG_FILE;
-          return AddFileEx(SrcFileName, DestFileName, bVariablizeName, fileFlags);
+            VIRT_FILE_FLAGS fileFlags = VIRT_FILE_FLAGS.ISFILE | VIRT_FILE_FLAGS.DEPLOY_UPON_PRELOAD | VIRT_FILE_FLAGS.PKG_FILE;
+            return AddFileEx(SrcFileName, DestFileName, bVariablizeName, fileFlags);
         }
 
         public bool AddFileEx(
@@ -1148,10 +1235,14 @@ namespace VirtPackageAPI
         {
             return GetRegWorkKeyEx(null);
         }
+        
+        [DllImport("kernel32.dll")]
+        static extern void OutputDebugString(string lpOutputString);
 
         public bool SaveRegWorkKey()
         {
             APIRET Ret = (APIRET)VirtRegSaveWorkKey(hPkg);
+            OutputDebugString("SaveRegWorkKey() ret=" + (int)Ret + " LE=" + Marshal.GetLastWin32Error() + "\n");
             if (Ret == APIRET.SUCCESS)
                 return true;
             else if (Ret == APIRET.INVALID_PARAMETER)
@@ -1234,11 +1325,18 @@ namespace VirtPackageAPI
 
         //
         // RunningApp functions
+        static private void Dbg(string msg)
+        {
+            OutputDebugString("CameyoMenu: " + msg + "\r\n");
+        }
+
         static private bool EnumRunningAppsCallback(
             ref Object Data,
             ref RUNNING_APP RunningAppRaw)
         {
-            RunningApp runningApp = new RunningApp() {
+            Dbg("EnumRunningAppsCallback: in, sizeof(RunningApp)=" + Marshal.SizeOf(RunningAppRaw));
+            RunningApp runningApp = new RunningApp()
+            {
                 AppID = LPWStrToString(RunningAppRaw.AppID),
                 CarrierExeName = LPWStrToString(RunningAppRaw.CarrierExeName),
                 FriendlyName = LPWStrToString(RunningAppRaw.FriendlyName),
@@ -1248,6 +1346,7 @@ namespace VirtPackageAPI
                 Processes = ArrayToList(RunningAppRaw.Processes, RunningAppRaw.TotalPIDs)
             };
             ((List<RunningApp>)Data).Add(runningApp);
+            Dbg("EnumRunningAppsCallback: out");
             return true;
         }
 
@@ -1257,9 +1356,15 @@ namespace VirtPackageAPI
             List<RunningApp> list = new List<RunningApp>();
             Object data = list;
             if ((APIRET)RunningAppEnum(Callback, ref data) == APIRET.SUCCESS)
+            {
+                Dbg("GetRunningApps: out");
                 return list;
+            }
             else
+            {
+                Dbg("GetRunningApps: out (null)");
                 return null;
+            }
         }
 
         static public RunningApp FindRunningApp(string appID)
@@ -1381,12 +1486,12 @@ namespace VirtPackageAPI
             }
         }
 
-        static public System.Collections.Hashtable ReadIniSettingsBuf(String iniBuf)
+        static public Hashtable ReadIniSettingsBuf(String iniBuf)
         {
             try
             {
                 String[] lines = iniBuf.Split('\r', '\n');
-                System.Collections.Hashtable values = new System.Collections.Hashtable();
+                var values = new Hashtable(StringComparer.InvariantCultureIgnoreCase);
                 for (int i = 0; i < lines.Length; i++)
                 {
                     if (String.IsNullOrEmpty(lines[i]))
@@ -1409,7 +1514,7 @@ namespace VirtPackageAPI
             }
         }
 
-        static public System.Collections.Hashtable ReadIniSettings(String IniFile)
+        static public Hashtable ReadIniSettings(String IniFile)
         {
             if (!File.Exists(IniFile))
                 return null;
@@ -1435,6 +1540,7 @@ namespace VirtPackageAPI
                 RUNNINGAPP_ENUM_CALLBACK Callback = new RUNNINGAPP_ENUM_CALLBACK(EnumRunningAppsCallback);
                 List<RunningApp> list = new List<RunningApp>();
                 Object data = list;
+                Dbg("GetRunningApps");
                 if ((APIRET)RunningAppEnumKeepAlive(ref Context, Callback, ref data) == APIRET.SUCCESS)
                     return list;
                 else
@@ -1485,8 +1591,8 @@ namespace VirtPackageAPI
         public List<String> IntegratedComponents { get { return GetIntegratedComponents(); } }
         public List<String> m_IntegratedComponents;
 
-        public System.Collections.Hashtable IniProperties { get { return m_IniProperties; } }
-        internal System.Collections.Hashtable m_IniProperties;
+        public Hashtable IniProperties { get { return m_IniProperties; } }
+        internal Hashtable m_IniProperties;
 
         public DeployedApp(String appID, String baseDirName, String carrierExeName)
         {
@@ -1499,22 +1605,32 @@ namespace VirtPackageAPI
         public static long RecursiveDirSize(DirectoryInfo d) 
         {    
             long Size = 0;    
+            
             // Add file sizes.
-            FileInfo[] fis = d.GetFiles();
-            foreach (FileInfo fi in fis) 
+            try
             {
-                try
+                FileInfo[] fis = d.GetFiles();
+                foreach (FileInfo fi in fis)
                 {
-                    Size += fi.Length;
+                    try
+                    {
+                        Size += fi.Length;
+                    }
+                    catch { }
                 }
-                catch { }
             }
+            catch { }
+
             // Add subdirectory sizes.
-            DirectoryInfo[] dis = d.GetDirectories();
-            foreach (DirectoryInfo di in dis) 
+            try
             {
-                Size += RecursiveDirSize(di);   
+                DirectoryInfo[] dis = d.GetDirectories();
+                foreach (DirectoryInfo di in dis)
+                {
+                    Size += RecursiveDirSize(di);
+                }
             }
+            catch { }
             return(Size);  
         }
 
@@ -1718,7 +1834,7 @@ namespace VirtPackageAPI
                     return null;
                 String baseDirName = (String)key.GetValue("BaseDirName");
                 String carrierExeName = (String)key.GetValue("CarrierExeName");
-                System.Diagnostics.Debug.WriteLine(appID);
+                System.Diagnostics.Debug.WriteLine(appID + ": " + carrierExeName);
 
                 // Detect & avoid disconnected shares / mapped drives, as their I/O can take a long time before failing..
                 if (!FileExistsTimeout(carrierExeName, 1000)) //|| !DirectoryExistsTimeout(baseDirName, 1000))
@@ -1731,21 +1847,79 @@ namespace VirtPackageAPI
                 return null;
             }
         }
+    }
 
-        static public bool RunningInfoDword(string appID, string item, ref int ret)
+    //
+    // Packager command line functions
+    public class PackagerCmdLine
+    {
+        static public Hashtable ReadIni(string appExe, string packagerExe)
+        {
+            string tempFile = Path.GetTempFileName();
+            try { System.IO.File.Delete(tempFile); }
+            catch { }
+
+            int exitCode = -1;
+            string args = string.Format("-Quiet -ExtractIni \"{0}\" \"{1}\"", appExe, tempFile);
+            bool execOk = ExecProg(packagerExe, args, true, ref exitCode);
+            if (!execOk)
+                return null;
+            if (!File.Exists(tempFile))
+                return null;
+            try   // finally
+            {
+                if (exitCode != (int)VirtPackageAPI.VirtPackage.APIRET.SUCCESS)
+                    return null;
+                return VirtPackage.ReadIniSettings(tempFile);
+            }
+            finally
+            {
+                try { System.IO.File.Delete(tempFile); }
+                catch { }
+            }
+        }
+
+        static public bool SetProperties(string appExe, Hashtable values, string packagerExe)
+        {
+            int exitCode = -1;
+            string properties = "";
+            foreach (DictionaryEntry value in values)
+            {
+                if (!string.IsNullOrEmpty(properties))
+                    properties += ",,";
+                properties += value.Key + "=" + value.Value;
+            }
+            string args = string.Format("-Quiet \"-SetProperties:{0}\" {1}", properties, appExe);
+            bool execOk = ExecProg(packagerExe, args, true, ref exitCode);
+            return (execOk && exitCode == (int)VirtPackageAPI.VirtPackage.APIRET.SUCCESS);
+        }
+
+        static public string PackagerExe()
+        {
+            return Path.Combine(Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName), "Packager.exe");
+        }
+
+        static private bool ExecProg(String fileName, String args, bool wait, ref int exitCode)
         {
             try
             {
-                RegistryKey key = Registry.CurrentUser.OpenSubKey("Software\\VOS\\" + appID + "\\RunningInfo", false);
-                if (key == null)
-                    return false;
-                ret = (int)key.GetValue(item);
+                System.Diagnostics.ProcessStartInfo procStartInfo =
+                    new System.Diagnostics.ProcessStartInfo(fileName, args);
+                System.Diagnostics.Process proc = new System.Diagnostics.Process();
+                procStartInfo.WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden;
+                procStartInfo.CreateNoWindow = true;
+                procStartInfo.UseShellExecute = false;
+                proc.StartInfo = procStartInfo;
+                proc.Start();
+                if (wait)
+                {
+                    proc.WaitForExit();
+                    exitCode = proc.ExitCode;
+                }
                 return true;
             }
-            catch
-            {
-                return false;
-            }
+            catch { }
+            return false;
         }
     }
 }

@@ -78,6 +78,7 @@ namespace PackageEditor
             fsFolderInfoIsolationCombo.Text = "";
             fsFolderInfoIsolationCombo.Items.Add(PackageEditor.Messages.Messages.fullAccess);
             fsFolderInfoIsolationCombo.Items.Add(PackageEditor.Messages.Messages.isolated);
+            fsFolderInfoIsolationCombo.Items.Add(PackageEditor.Messages.Messages.strictlyIsolated);
             fsFolderTree.AfterSelect += OnFolderTreeSelect;
             fsFolderInfoIsolationCombo.SelectionChangeCommitted += OnFolderSandboxChange;
             fsAddBtn.Click += OnAddBtnClick;
@@ -105,7 +106,7 @@ namespace PackageEditor
             newNode.Text = "FileSystem";
             newNode.virtFsNode = new VirtFsNode();
             treeHelper.SetFolderNodeImage(newNode,
-                false, virtPackage.GetFileSandbox("", false));
+                false, false, virtPackage.GetFileSandbox("", false));
             fsFolderTree.Nodes.Add(newNode);
 
             foreach (VirtFsNode virtFsNode in virtFsNodes)
@@ -244,7 +245,7 @@ namespace PackageEditor
                         newNode.sandboxFlags = virtPackage.GetFileSandbox(virtFsNode.FileName, false);
                         newNode.deleted = false;
                         newNode.addedEmpty = false;
-                        treeHelper.SetFolderNodeImage(newNode, newNode.deleted, newNode.sandboxFlags);
+                        treeHelper.SetFolderNodeImage(newNode, newNode.deleted, (virtFsNode.FileFlags & VIRT_FILE_FLAGS.DELETED) != 0, newNode.sandboxFlags);
                         //if (newNode.sandboxFlags == SANDBOXFLAGS_COPY_ON_WRITE) newNode.ImageIndex = 3;
                         if (curParent != null)
                             curParent.Nodes.Add(newNode);
@@ -312,10 +313,10 @@ namespace PackageEditor
 
                     newItem.flags = (VIRT_FILE_FLAGS)childFile.virtFsNode.FileFlags;
 
-                    if ((newItem.flags & VirtPackageAPI.VIRT_FILE_FLAGS.DEPLOYED) != 0)
-                        newItem.ImageIndex = 6;
+                    if ((newItem.flags & VirtPackageAPI.VIRT_FILE_FLAGS.DEPLOY_UPON_PRELOAD) != 0)
+                        newItem.ImageIndex = 7;
                     else
-                        newItem.ImageIndex = 3;
+                        newItem.ImageIndex = 6;
                     //ListViewItem.ListViewSubItem x = new ListViewItem.ListViewSubItem();
                     //x.Text = ((VIRT_FILE_FLAGS)childFile.virtFsNode.FileFlags).ToString();
                     //newItem.SubItems.Add(x);
@@ -400,6 +401,7 @@ namespace PackageEditor
             }
 
             OpenFileDialog openFileDialog = new OpenFileDialog();
+            openFileDialog.Filter = "All file types|*.*";
             openFileDialog.Multiselect = true;
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
@@ -474,7 +476,7 @@ namespace PackageEditor
                 virtFsFileNode.FileFlags = VIRT_FILE_FLAGS.ISFILE;      //it's a file
                 if (Path.GetExtension(virtFsFileNode.FileName).Equals(".dll"))
                 {
-                  virtFsFileNode.FileFlags |= VIRT_FILE_FLAGS.DEPLOYED;
+                    virtFsFileNode.FileFlags |= VIRT_FILE_FLAGS.DEPLOY_UPON_PRELOAD;
                 }
 
 
@@ -650,12 +652,26 @@ namespace PackageEditor
                 MessageBox.Show("Folder was deleted");
                 return;
             }
+retry_input:
             String newFolderName = "";
             if (TreeHelper.InputBox("Add empty folder", "Folder name:", ref newFolderName) != DialogResult.OK ||
                 string.IsNullOrEmpty(newFolderName))
             {
                 return;
             }
+
+            // Help user: don't let them allow root dirs such as "SomeDir". Instead, force "C_" or "%Program Files%" for root nodes.
+            if (parentNode.Parent == null)   // Adding to root dir
+            {
+                if ((newFolderName.Length < 2) || 
+                    (newFolderName.Length == 2 && newFolderName[1] != '_') || 
+                    (newFolderName.Length > 2 && newFolderName[0] != '%'))
+                {
+                    if (MessageBox.Show(Messages.Messages.incorrectRootDir, "Warning", MessageBoxButtons.YesNo) != DialogResult.Yes)
+                        goto retry_input;
+                }
+            }
+
             if (newFolderName.Contains("\\"))
             {
                 MessageBox.Show("Folder must not contain '\\'. Please specify one folder at a time.");
@@ -779,7 +795,7 @@ namespace PackageEditor
             {
                 VirtFsNode virtFsNode = curNode.virtFsNode;         // Avoids CS1690
                 curNode.sandboxFlags = virtPackage.GetFileSandbox(virtFsNode.FileName, false);
-                treeHelper.SetFolderNodeImage(curNode, curNode.deleted, curNode.sandboxFlags);
+                treeHelper.SetFolderNodeImage(curNode, curNode.deleted, (virtFsNode.FileFlags & VIRT_FILE_FLAGS.DELETED) != 0, curNode.sandboxFlags);
                 if (curNode.Nodes.Count > 0)
                     RefreshFolderNodeRecursively((FolderTreeNode)curNode.Nodes[0], iteration + 1);
             }
@@ -789,7 +805,7 @@ namespace PackageEditor
                 {
                     VirtFsNode virtFsNode = curNode.virtFsNode;     // Avoids CS1690
                     curNode.sandboxFlags = virtPackage.GetFileSandbox(virtFsNode.FileName, false);
-                    treeHelper.SetFolderNodeImage(curNode, curNode.deleted, curNode.sandboxFlags);
+                    treeHelper.SetFolderNodeImage(curNode, curNode.deleted, (virtFsNode.FileFlags & VIRT_FILE_FLAGS.DELETED) != 0, curNode.sandboxFlags);
                     if (curNode.Nodes.Count > 0)
                         RefreshFolderNodeRecursively((FolderTreeNode)curNode.Nodes[0], iteration + 1);
                     curNode = (FolderTreeNode)curNode.NextNode;
@@ -940,8 +956,8 @@ namespace PackageEditor
                     return 0;
                 case VirtPackage.SANDBOXFLAGS_COPY_ON_WRITE:
                     return 1;
-                /*case VirtPackage.SANDBOXFLAGS_FULL_ISOLATION:
-                    return 2;*/
+                case VirtPackage.SANDBOXFLAGS_STRICTLY_ISOLATED:
+                    return 2;
                 default:
                     return 0;
             }
@@ -955,17 +971,19 @@ namespace PackageEditor
                     return VirtPackage.SANDBOXFLAGS_PASSTHROUGH;
                 case 1:
                     return VirtPackage.SANDBOXFLAGS_COPY_ON_WRITE;
-                /*case 2:
-                    return VirtPackage.SANDBOXFLAGS_FULL_ISOLATION;*/
+                case 2:
+                    return VirtPackage.SANDBOXFLAGS_STRICTLY_ISOLATED;
                 default:
                     return 0;
             }
         }
 
-        public void SetFolderNodeImage(TreeNode node, bool deleted, UInt32 sandboxFlags)
+        public void SetFolderNodeImage(TreeNode node, bool toRemove, bool virtFsDeleted, UInt32 sandboxFlags)
         {
-            if (deleted)
-                node.ImageIndex = node.SelectedImageIndex = 5;
+            if (toRemove)
+                node.ImageIndex = node.SelectedImageIndex = 4;
+            else if (virtFsDeleted)
+                node.ImageIndex = node.SelectedImageIndex = 3;
             else
             {
                 switch (sandboxFlags)
@@ -975,6 +993,9 @@ namespace PackageEditor
                         break;
                     case VirtPackage.SANDBOXFLAGS_COPY_ON_WRITE:
                         node.ImageIndex = node.SelectedImageIndex = 1;
+                        break;
+                    case VirtPackage.SANDBOXFLAGS_STRICTLY_ISOLATED:
+                        node.ImageIndex = node.SelectedImageIndex = 2;
                         break;
                     default:
                         node.ImageIndex = node.SelectedImageIndex = 0;
