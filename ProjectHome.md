@@ -1,0 +1,1 @@
+Package Editor, plugins and SDK for Cameyo Application Virtualization.
